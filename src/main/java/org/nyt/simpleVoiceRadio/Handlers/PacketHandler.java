@@ -29,7 +29,7 @@ public class PacketHandler {
                 if (event.getPacket().getIntegers().read(0).equals(1010)) {
                     Jukebox jukebox = (Jukebox) event.getPacket().getBlockPositionModifier().read(0).toLocation(event.getPlayer().getWorld()).getBlock().getState();
                     if (jukebox.getRecord().getItemMeta().getJukeboxPlayable().getSong().getKey().getNamespace().equals("simple_voice_radio")) {
-                        event.getPlayer().sendMessage("not true");
+                        event.getPlayer().sendMessage("true");
                         event.setCancelled(true);
                     }
                 }
