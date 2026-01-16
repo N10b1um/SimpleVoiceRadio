@@ -1,0 +1,15 @@
+name: SimpleVoiceRadio
+version: '0.0.1'
+main: org.nyt.simpleVoiceRadio.SimpleVoiceRadio
+api-version: '1.21.1'
+bootstrapper: org.nyt.simpleVoiceRadio.Misc.SimpleVoiceRadioBootstrap
+dependencies:
+  server:
+    voicechat:
+      load: BEFORE
+      required: true
+      join-classpath: true
+    ProtocolLib:
+      load: BEFORE
+      required: true
+      join-classpath: true
