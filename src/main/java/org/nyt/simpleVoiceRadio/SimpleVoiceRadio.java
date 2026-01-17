@@ -12,7 +12,7 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.nyt.simpleVoiceRadio.Handlers.CommandHandler;
 import org.nyt.simpleVoiceRadio.Handlers.EventHandler;
-import org.nyt.simpleVoiceRadio.Handlers.PacketHandler;  // ДОБАВЬ ЭТОТ ИМПОРТ
+import org.nyt.simpleVoiceRadio.Handlers.PacketHandler;
 import org.nyt.simpleVoiceRadio.Misc.Item;
 import org.nyt.simpleVoiceRadio.Utils.DataManager;
 import org.nyt.simpleVoiceRadio.Utils.DisplayEntityManager;

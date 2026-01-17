@@ -21,7 +21,6 @@ import org.nyt.simpleVoiceRadio.SimpleVoiceRadio;
 import org.nyt.simpleVoiceRadio.Utils.DataManager;
 import org.nyt.simpleVoiceRadio.Utils.DisplayEntityManager;
 import org.nyt.simpleVoiceRadio.VoiceAddon;
-
 import java.util.List;
 
 public class EventHandler implements Listener {
