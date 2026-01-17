@@ -17,6 +17,7 @@ public class VoiceAddon implements VoicechatPlugin {
     private final SimpleVoiceRadio plugin;
     private final JukeboxManager jukeboxManager;
     private final Map<Location, LocationalAudioChannel> outputChannels = new ConcurrentHashMap<>();
+    private final Set<Location> activeOutputs = ConcurrentHashMap.newKeySet();
 
     public VoiceAddon(DataManager dataManager, SimpleVoiceRadio plugin, JukeboxManager jukeboxManager) {
         this.dataManager = dataManager;
@@ -51,7 +52,7 @@ public class VoiceAddon implements VoicechatPlugin {
                 api.createPosition(location.getBlockX() + 0.5, location.getBlockY() + 0.5, location.getBlockZ() + 0.5)
         );
 
-        if ( channel == null ) return null;
+        if (channel == null) return null;
 
         float radius = (float) plugin.getConfig().getDouble("radio-block.output_radius", 16);
         channel.setDistance(radius);
@@ -80,7 +81,7 @@ public class VoiceAddon implements VoicechatPlugin {
 
     public void deleteChannel(Location location) {
         LocationalAudioChannel channel = outputChannels.get(location);
-        if ( channel != null ) channel.flush();
+        if (channel != null) channel.flush();
         outputChannels.remove(location);
     }
 
@@ -101,7 +102,6 @@ public class VoiceAddon implements VoicechatPlugin {
     }
 
     private void sendPacket(Location location, byte[] audioData) {
-
         double inputRadius = plugin.getConfig().getDouble("radio-block.input_search_radius", 15.0);
         double inputRadiusSq = inputRadius * inputRadius;
 
@@ -111,14 +111,29 @@ public class VoiceAddon implements VoicechatPlugin {
                                 && e.getKey().distanceSquared(location) <= inputRadiusSq)
                         .toList();
 
-        if (nearbyInputRadios.isEmpty()) return;
+        // Если нет аудио или нет входных радио рядом - очищаем всё и выходим
+        if (audioData == null || audioData.length == 0 || nearbyInputRadios.isEmpty()) {
+            if (!activeOutputs.isEmpty()) {
+                activeOutputs.forEach(loc -> jukeboxManager.updateJukeboxDisc(loc, 0));
+                activeOutputs.clear();
+            }
+            return;
+        }
 
         Set<Integer> frequencies = nearbyInputRadios.stream()
                 .map(e -> e.getValue().getFrequency())
                 .filter(freq -> freq > 0)
                 .collect(Collectors.toSet());
 
-        if (frequencies.isEmpty()) return;
+        if (frequencies.isEmpty()) {
+            if (!activeOutputs.isEmpty()) {
+                activeOutputs.forEach(loc -> jukeboxManager.updateJukeboxDisc(loc, 0));
+                activeOutputs.clear();
+            }
+            return;
+        }
+
+        Set<Location> newActiveOutputs = ConcurrentHashMap.newKeySet();
 
         for (int frequency : frequencies) {
             Map<Location, DataManager.RadioData> outputRadios =
@@ -132,6 +147,7 @@ public class VoiceAddon implements VoicechatPlugin {
             if (inputForFreq.isEmpty()) continue;
 
             double distance = location.distance(inputForFreq.get().getKey());
+            int signalLevel = JukeboxManager.calculateSignalLevel(distance, inputRadius);
 
             for (Map.Entry<Location, DataManager.RadioData> entry : outputRadios.entrySet()) {
                 Location loc = entry.getKey();
@@ -151,14 +167,17 @@ public class VoiceAddon implements VoicechatPlugin {
 
                 if (nearbyPlayers.isEmpty()) continue;
 
-                if (audioData == null || audioData.length == 0) {
-                    jukeboxManager.updateJukeboxDisc(loc, 0);
-                } else {
-                    jukeboxManager.updateJukeboxDisc(loc, JukeboxManager.calculateSignalLevel(distance, inputRadius));
-                    channel.send(audioData);
-                }
+                jukeboxManager.updateJukeboxDisc(loc, signalLevel);
+                channel.send(audioData);
+                newActiveOutputs.add(loc);
             }
         }
-    }
 
+        activeOutputs.stream()
+                .filter(loc -> !newActiveOutputs.contains(loc))
+                .forEach(loc -> jukeboxManager.updateJukeboxDisc(loc, 0));
+
+        activeOutputs.clear();
+        activeOutputs.addAll(newActiveOutputs);
+    }
 }
