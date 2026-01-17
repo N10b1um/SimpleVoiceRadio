@@ -159,11 +159,11 @@ public class EventHandler implements Listener {
         if (player.isSneaking() && !redstoneMode) {
             freq = blockData.getFrequency() + 1;
             if (freq > plugin.getConfig().getInt("radio-block.max_frequency", 15)) freq = 1;
-            player.getWorld().playSound(event.getClickedBlock().getLocation().toCenterLocation(), Sound.BLOCK_NOTE_BLOCK_XYLOPHONE, SoundCategory.MASTER, 1f, 0.9f);
+            player.getWorld().playSound(event.getClickedBlock().getLocation().toCenterLocation(), Sound.BLOCK_NOTE_BLOCK_BIT, SoundCategory.MASTER, 1f, 2f);
         } else {
             if (redstoneMode && currentPower <= 0) return;
 
-            player.getWorld().playSound(event.getClickedBlock().getLocation(), Sound.BLOCK_COPPER_BULB_TURN_ON, SoundCategory.MASTER, 1, 0);
+            player.getWorld().playSound(event.getClickedBlock().getLocation(), Sound.BLOCK_COPPER_BULB_TURN_ON, SoundCategory.MASTER, 3, 0);
 
             if (blockData.getState().equals("input")) blockData.setState("output");
             else if (blockData.getState().equals("output")) blockData.setState("input");

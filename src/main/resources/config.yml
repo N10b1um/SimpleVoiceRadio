@@ -9,7 +9,7 @@ radio:
       - redstone,netherite_ingot,redstone
 
 radio-block:
-  input_search_radius: 5.0
+  input_search_radius: 15
   max_frequency: 15
   world: world
   output_radius: 16

@@ -3,6 +3,7 @@ package org.nyt.simpleVoiceRadio;
 import de.maxhenkel.voicechat.api.*;
 import de.maxhenkel.voicechat.api.audiochannel.LocationalAudioChannel;
 import de.maxhenkel.voicechat.api.events.*;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.World;
@@ -12,6 +13,7 @@ import org.nyt.simpleVoiceRadio.Utils.JukeboxManager;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 public class VoiceAddon implements VoicechatPlugin {
     public static VoicechatServerApi api = null;
@@ -107,42 +109,58 @@ public class VoiceAddon implements VoicechatPlugin {
         double inputRadius = plugin.getConfig().getDouble("radio-block.input_search_radius", 15.0);
         double inputRadiusSq = inputRadius * inputRadius;
 
-        Optional<Map.Entry<Location, DataManager.RadioData>> inputOpt =
+        List<Map.Entry<Location, DataManager.RadioData>> nearbyInputRadios =
                 dataManager.getAllRadiosByState("input").entrySet().stream()
-                        .filter(e -> e.getKey().getWorld().equals(location.getWorld()) && e.getKey().distanceSquared(location) <= inputRadiusSq)
-                        .findFirst();
+                        .filter(e -> e.getKey().getWorld().equals(location.getWorld())
+                                && e.getKey().distanceSquared(location) <= inputRadiusSq)
+                        .toList();
 
-        if (inputOpt.isEmpty()) return;
+        if (nearbyInputRadios.isEmpty()) return;
 
-        int frequency = inputOpt.get().getValue().getFrequency();
-        if (frequency == 0) return;
+        Set<Integer> frequencies = nearbyInputRadios.stream()
+                .map(e -> e.getValue().getFrequency())
+                .filter(freq -> freq > 0)
+                .collect(Collectors.toSet());
 
-        Map<Location, DataManager.RadioData> outputRadios = dataManager.getAllRadiosByStateAndFrequency("output", frequency);
+        if (frequencies.isEmpty()) return;
 
-        for (Map.Entry<Location, DataManager.RadioData> entry : outputRadios.entrySet()) {
-            Location loc = entry.getKey();
+        for (int frequency : frequencies) {
+            Map<Location, DataManager.RadioData> outputRadios =
+                    dataManager.getAllRadiosByStateAndFrequency("output", frequency);
 
-            if (!loc.isChunkLoaded()) continue;
+            Optional<Map.Entry<Location, DataManager.RadioData>> inputForFreq =
+                    nearbyInputRadios.stream()
+                            .filter(e -> e.getValue().getFrequency() == frequency)
+                            .findFirst();
 
-            ServerLevel serverLevel = api.fromServerLevel(loc.getWorld());
-            LocationalAudioChannel channel = outputChannels.computeIfAbsent(loc, this::createChannel);
+            if (inputForFreq.isEmpty()) continue;
 
-            if (channel == null) continue;
+            double distance = location.distance(inputForFreq.get().getKey());
 
-            Collection<ServerPlayer> nearbyPlayers = api.getPlayersInRange(
-                    serverLevel,
-                    api.createPosition(loc.getBlockX() + 0.5, loc.getBlockY() + 0.5, loc.getBlockZ() + 0.5),
-                    channel.getDistance()
-            );
+            for (Map.Entry<Location, DataManager.RadioData> entry : outputRadios.entrySet()) {
+                Location loc = entry.getKey();
 
-            if (nearbyPlayers.isEmpty()) continue;
+                if (!loc.isChunkLoaded()) continue;
 
-            if (audioData == null || audioData.length == 0) {
-                jukeboxManager.updateJukeboxDisc(loc, 0);
-            } else {
-                double distance = location.distance(inputOpt.get().getKey());
-                jukeboxManager.updateJukeboxDisc(loc, JukeboxManager.calculateSignalLevel(distance, inputRadius));
-                channel.send(audioData);
+                ServerLevel serverLevel = api.fromServerLevel(loc.getWorld());
+                LocationalAudioChannel channel = outputChannels.computeIfAbsent(loc, this::createChannel);
+
+                if (channel == null) continue;
+
+                Collection<ServerPlayer> nearbyPlayers = api.getPlayersInRange(
+                        serverLevel,
+                        api.createPosition(loc.getBlockX() + 0.5, loc.getBlockY() + 0.5, loc.getBlockZ() + 0.5),
+                        channel.getDistance()
+                );
+
+                if (nearbyPlayers.isEmpty()) continue;
+
+                if (audioData == null || audioData.length == 0) {
+                    jukeboxManager.updateJukeboxDisc(loc, 0);
+                } else {
+                    jukeboxManager.updateJukeboxDisc(loc, JukeboxManager.calculateSignalLevel(distance, inputRadius));
+                    channel.send(audioData);
+                }
             }
         }
     }
