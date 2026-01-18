@@ -12,8 +12,10 @@ import org.bukkit.entity.TextDisplay;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.*;
 import org.bukkit.event.entity.EntityExplodeEvent;
+import org.bukkit.event.inventory.PrepareItemCraftEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 import org.nyt.simpleVoiceRadio.Misc.Item;
@@ -72,7 +74,7 @@ public class EventHandler implements Listener {
 
     @org.bukkit.event.EventHandler
     public void onBlockPlace(BlockPlaceEvent event) {
-        if (event.getItemInHand().getPersistentDataContainer().get(NamespacedKey.fromString("radio"), PersistentDataType.BOOLEAN) == null) return;
+        if (!event.getItemInHand().getPersistentDataContainer().has(NamespacedKey.fromString("radio"), PersistentDataType.BOOLEAN)) return;
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             float yaw = Math.round(event.getPlayer().getYaw() / 90f) * 90f;
             Location center = event.getBlock().getLocation().toCenterLocation();
@@ -91,6 +93,16 @@ public class EventHandler implements Listener {
 
             if (addon != null) addon.createChannel(event.getBlock().getLocation());
         }, 1L);
+    }
+
+    @org.bukkit.event.EventHandler
+    public void onCraftPrepare(PrepareItemCraftEvent event) {
+        ItemStack result = event.getInventory().getResult();
+        if (event.getView().getPlayer() instanceof Player player && result != null) {
+            if ( result.getPersistentDataContainer().has(NamespacedKey.fromString("radio")) && !player.hasPermission("simple_voice_radio.can_craft") ) {
+                event.getInventory().setResult(null);
+            }
+        }
     }
 
     @org.bukkit.event.EventHandler
@@ -142,8 +154,7 @@ public class EventHandler implements Listener {
         if (blockData == null) return;
 
         ItemStack item = event.getItem() == null ? new ItemStack(Material.AIR) : event.getItem();
-        boolean isRadio = item.getItemMeta() != null &&
-                item.getItemMeta().getPersistentDataContainer().has(NamespacedKey.fromString("radio"), PersistentDataType.BOOLEAN);
+        boolean isRadio = item.getItemMeta() != null && item.getItemMeta().getPersistentDataContainer().has(NamespacedKey.fromString("radio"));
 
         if (isRadio) return;
 
@@ -155,11 +166,11 @@ public class EventHandler implements Listener {
         int freq = blockData.getFrequency();
         String oldState = blockData.getState();
 
-        if (player.isSneaking() && !redstoneMode) {
+        if (player.isSneaking() && !redstoneMode && player.hasPermission("simple_voice_radio.can_change_frequency")) {
             freq = blockData.getFrequency() + 1;
             if (freq > plugin.getConfig().getInt("radio-block.max_frequency", 15)) freq = 1;
             player.getWorld().playSound(event.getClickedBlock().getLocation().toCenterLocation(), Sound.BLOCK_NOTE_BLOCK_BIT, SoundCategory.MASTER, 1f, 2f);
-        } else {
+        } else if (player.hasPermission("simple_voice_radio.can_switch_mode")) {
             if (redstoneMode && currentPower <= 0) return;
 
             player.getWorld().playSound(event.getClickedBlock().getLocation(), Sound.BLOCK_COPPER_BULB_TURN_ON, SoundCategory.MASTER, 3, 0);

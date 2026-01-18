@@ -50,15 +50,11 @@ public final class SimpleVoiceRadio extends JavaPlugin {
         PacketHandler packetHandler = new PacketHandler(this);
         packetHandler.registerActionBarListener();
 
-        LifecycleEventManager<Plugin> manager = this.getLifecycleManager();
-        manager.registerEventHandler(LifecycleEvents.COMMANDS, event -> {
-            final Commands commands = event.registrar();
-            CommandHandler handler = new CommandHandler(this, item);
-
-            commands.register(
+        getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event -> {
+            event.registrar().register(
                     "simple_voice_radio",
                     "SimpleVoiceRadio command",
-                    handler
+                    new CommandHandler(this, item)
             );
         });
 
@@ -72,6 +68,7 @@ public final class SimpleVoiceRadio extends JavaPlugin {
 
         getServer().getPluginManager().registerEvents(new EventHandler(this, dataManager, displayEntityManager, voiceAddon, item), this);
     }
+
 
     @Override
     public void onDisable() {

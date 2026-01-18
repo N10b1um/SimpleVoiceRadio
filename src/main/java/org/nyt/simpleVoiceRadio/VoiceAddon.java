@@ -88,6 +88,9 @@ public class VoiceAddon implements VoicechatPlugin {
     private void onMicrophone(MicrophonePacketEvent event) {
         try {
             VoicechatConnection connection = event.getSenderConnection();
+            org.bukkit.entity.Player player = (org.bukkit.entity.Player) connection.getPlayer().getPlayer();
+
+            if (!player.hasPermission("simple_voice_radio.can_broadcast")) return;
 
             World world = (World) connection.getPlayer().getServerLevel().getServerLevel();
             Position position = connection.getPlayer().getPosition();

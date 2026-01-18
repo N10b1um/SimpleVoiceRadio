@@ -3,21 +3,28 @@ package org.nyt.simpleVoiceRadio.Handlers;
 import io.papermc.paper.command.brigadier.BasicCommand;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.nyt.simpleVoiceRadio.Misc.Item;
 import org.nyt.simpleVoiceRadio.SimpleVoiceRadio;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 public class CommandHandler implements BasicCommand {
     private final SimpleVoiceRadio plugin;
     private final Item item;
+    private final static Map<String, String> arguments = Map.ofEntries(
+            Map.entry("reload", "simple_voice_radio.reload_config"),
+            Map.entry("give", "simple_voice_radio.give")
+    );
+    private final Component usage = Component.text("Usage: /simple_voice_radio " + arguments.keySet().stream().toList(), TextColor.color(214, 54, 67));
+    private final Component noPermission = Component.text("You don't have permission to use this command!", TextColor.color(214, 54, 67));
+    private final Component playerOnly = Component.text("Only players can use this command!", TextColor.color(214, 54, 67));
 
     public CommandHandler(SimpleVoiceRadio plugin, Item item) {
         this.plugin = plugin;
@@ -25,61 +32,55 @@ public class CommandHandler implements BasicCommand {
     }
 
     @Override
-    public void execute(@NotNull CommandSourceStack stack, @NotNull String[] args) {
-        CommandSender sender = stack.getSender();
-
-        if (args.length == 0) {
-            sender.sendMessage(Component.text("Usage: /simple_voice_radio <reload|give>", NamedTextColor.RED));
-            return;
-        }
-
-        String arg = args[0];
-
-        if (arg.equalsIgnoreCase("reload")) {
-            if (!sender.hasPermission("simple_voice_radio.reload")) {
-                sender.sendMessage(Component.text("You don't have permission to use this command!", NamedTextColor.RED));
-                return;
-            }
-
-            try {
-                plugin.reloadConfig();
-                item.reloadCraft();
-                sender.sendMessage(Component.text("Config has been reloaded!", TextColor.fromHexString("#f5cb4e")));
-            } catch (Exception e) {
-                sender.sendMessage(Component.text("Failed to reload config!", NamedTextColor.RED));
-                SimpleVoiceRadio.LOGGER.error("Failed to reload config", e);
-            }
-
-        } else if (arg.equalsIgnoreCase("give")) {
-            if (!(sender instanceof Player player)) {
-                sender.sendMessage(Component.text("Only players can use this command!", NamedTextColor.RED));
-                return;
-            }
-
-            if (!player.hasPermission("simple_voice_radio.give")) {
-                sender.sendMessage(Component.text("You don't have permission to use this command!", NamedTextColor.RED));
-                return;
-            }
-
-            ItemStack radioItem = this.item.getItem();
-            player.getInventory().addItem(radioItem);
-            player.sendMessage(Component.text("Radio has been given!", TextColor.fromHexString("#f5cb4e")));
-        } else {
-            sender.sendMessage(Component.text("Usage: /simple_voice_radio <reload|give>", NamedTextColor.RED));
-        }
+    public @Nullable String permission() {
+        return "simple_voice_radio.command";
     }
 
     @Override
-    public @NotNull Collection<String> suggest(@NotNull CommandSourceStack stack, @NotNull String[] args) {
+    public void execute(@NotNull CommandSourceStack stack, @NotNull String[] args) {
+
+        CommandSender sender = stack.getSender();
+
+        if (args.length == 0) {
+            sender.sendMessage(usage);
+            return;
+        }
+
+        String arg = args[0].toLowerCase();
+
+        if (arguments.containsKey(arg)) {
+            if (sender.hasPermission(arguments.get(arg))) {
+                switch (arg) {
+                    case "reload" -> {
+                        try {
+                            plugin.reloadConfig();
+                            item.reloadCraft();
+                            sender.sendMessage(Component.text("Config has been reloaded!", TextColor.color(245, 203, 78)));
+                        } catch (Exception e) {
+                            sender.sendMessage(Component.text("Failed to reload config!", TextColor.color(214, 54, 67)));
+                            SimpleVoiceRadio.LOGGER.error("Failed to reload config", e);
+                        }
+                    }
+                    case "give" -> {
+                        if (sender instanceof Player player) {
+                            ItemStack radioItem = this.item.getItem();
+                            player.getInventory().addItem(radioItem);
+                            player.sendMessage(Component.text("Radio has been given!", TextColor.color(245, 203, 78)));
+                        } else sender.sendMessage(playerOnly);
+                    }
+                }
+            } else sender.sendMessage(noPermission);
+        }
+        else sender.sendMessage(usage);
+    }
+
+    @Override
+    public @NotNull Collection<String> suggest(@NotNull CommandSourceStack stack, @NotNull String @NotNull [] args) {
         if (args.length <= 1) {
-            List<String> suggestions = new ArrayList<>();
-            if (stack.getSender().hasPermission("simple_voice_radio.reload")) {
-                suggestions.add("reload");
-            }
-            if (stack.getSender().hasPermission("simple_voice_radio.give")) {
-                suggestions.add("give");
-            }
-            return suggestions;
+            return arguments.entrySet().stream()
+                    .filter(e -> stack.getSender().hasPermission(e.getValue()))
+                    .map(Map.Entry::getKey)
+                    .toList();
         }
         return List.of();
     }
