@@ -9,6 +9,7 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.ItemDisplay;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.TextDisplay;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.*;
 import org.bukkit.event.entity.EntityExplodeEvent;
@@ -80,7 +81,7 @@ public class EventHandler implements Listener {
         }
     }
 
-    @org.bukkit.event.EventHandler
+    @org.bukkit.event.EventHandler(priority = EventPriority.LOWEST)
     public void onBlockPlace(BlockPlaceEvent event) {
         if (!event.getItemInHand().getPersistentDataContainer().has(NamespacedKey.fromString("radio"), PersistentDataType.BOOLEAN)) return;
         if (dataManager.getRadioCountInChunk(event.getBlock().getLocation()) >= plugin.getConfig().getInt("radio-block.blocks_per_chunk_limit", 10)) {
@@ -118,7 +119,7 @@ public class EventHandler implements Listener {
         }
     }
 
-    @org.bukkit.event.EventHandler
+    @org.bukkit.event.EventHandler(priority = EventPriority.LOWEST)
     public void onBreak(BlockBreakEvent event) {
         Block block = event.getBlock();
         DataManager.RadioData blockData = dataManager.getBlock(block.getLocation());
@@ -133,7 +134,7 @@ public class EventHandler implements Listener {
         breakRadio(event.getBlock(), blockData, false, true);
     }
 
-    @org.bukkit.event.EventHandler
+    @org.bukkit.event.EventHandler(priority = EventPriority.LOWEST)
     public void onExplosion(BlockExplodeEvent event) {
         event.blockList().removeIf(block -> {
             DataManager.RadioData blockData = dataManager.getBlock(block.getLocation());
@@ -145,7 +146,7 @@ public class EventHandler implements Listener {
         });
     }
 
-    @org.bukkit.event.EventHandler
+    @org.bukkit.event.EventHandler(priority = EventPriority.LOWEST)
     public void onEntityExplosion(EntityExplodeEvent event) {
         event.blockList().removeIf(block -> {
             DataManager.RadioData blockData = dataManager.getBlock(block.getLocation());
@@ -157,7 +158,7 @@ public class EventHandler implements Listener {
         });
     }
 
-    @org.bukkit.event.EventHandler
+    @org.bukkit.event.EventHandler(priority = EventPriority.LOWEST)
     public void onPlayerInteract(PlayerInteractEvent event) {
         if (!event.getAction().equals(Action.RIGHT_CLICK_BLOCK) || !event.getHand().equals(EquipmentSlot.HAND) || event.getClickedBlock() == null) {
             return;

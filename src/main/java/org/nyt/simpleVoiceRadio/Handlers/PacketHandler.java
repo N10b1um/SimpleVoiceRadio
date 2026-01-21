@@ -9,6 +9,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
+import org.bukkit.NamespacedKey;
 import org.bukkit.block.Jukebox;
 import org.nyt.simpleVoiceRadio.SimpleVoiceRadio;
 
@@ -30,7 +31,7 @@ public class PacketHandler {
             public void onPacketSending(PacketEvent event) {
                 if (event.getPacket().getIntegers().read(0).equals(1010)) {
                     Jukebox jukebox = (Jukebox) event.getPacket().getBlockPositionModifier().read(0).toLocation(event.getPlayer().getWorld()).getBlock().getState();
-                    if (PlainTextComponentSerializer.plainText().serialize(jukebox.getRecord().displayName()).equalsIgnoreCase("[SimpleVoiceRadio]")) {
+                    if (jukebox.getRecord().getPersistentDataContainer().has(NamespacedKey.fromString("simple_voice_radio_disc"))) {
                         event.setCancelled(true);
                     }
                 }

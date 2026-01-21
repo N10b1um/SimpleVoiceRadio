@@ -1,5 +1,6 @@
 package org.nyt.simpleVoiceRadio.Misc;
 
+import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -35,6 +36,11 @@ public class Item {
         String displayName = plugin.getConfig().getString("radio.display-name", "Radio");
         meta.displayName(MiniMessageSerializer.parse(displayName).decoration(TextDecoration.ITALIC, false));
 
+        List<Component> lore = parseLore();
+        if (!lore.isEmpty()) {
+            meta.lore(lore);
+        }
+
         meta.getPersistentDataContainer().set(
                 NamespacedKey.fromString("radio"),
                 PersistentDataType.BOOLEAN,
@@ -43,6 +49,22 @@ public class Item {
         item.setItemMeta(meta);
 
         return item;
+    }
+
+    private List<Component> parseLore() {
+        List<Component> lore = new ArrayList<>();
+
+        if (plugin.getConfig().isList("radio.lore")) {
+            plugin.getConfig().getStringList("radio.lore").stream()
+                    .filter(line -> !line.trim().isEmpty())
+                    .map(line -> MiniMessageSerializer.parse(line).decoration(TextDecoration.ITALIC, false))
+                    .forEach(lore::add);
+        } else if (plugin.getConfig().contains("radio.lore")) {
+            String line = String.valueOf(plugin.getConfig().get("radio.lore")).trim();
+            if (!line.isEmpty() && !line.equals("null")) lore.add(MiniMessageSerializer.parse(line).decoration(TextDecoration.ITALIC, false));
+        }
+
+        return lore;
     }
 
     private void setIngredient(ShapedRecipe recipe, char key, String materialName) {
@@ -95,7 +117,7 @@ public class Item {
         if (!(recipe instanceof ShapedRecipe shapedRecipe)) return new ItemStack[10];
 
         List<ItemStack> ingredients = new ArrayList<>();
-        ingredients.add(getItem()); // Слот 0 - результат крафта
+        ingredients.add(getItem());
 
         Map<Character, RecipeChoice> choiceMap = shapedRecipe.getChoiceMap();
 

@@ -10,7 +10,11 @@ public class MiniMessageSerializer {
     private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacyAmpersand();
 
     public static Component parse(String text) {
-        Component legacy = LEGACY.deserialize(text);
-        return MINI.deserialize(MINI.serialize(legacy));
+        Component miniComponent = MINI.deserialize(text);
+
+        String serialized = MINI.serialize(miniComponent);
+        Component legacyComponent = LEGACY.deserialize(serialized);
+
+        return miniComponent.children().isEmpty() && serialized.contains("&") ? legacyComponent : miniComponent;
     }
 }

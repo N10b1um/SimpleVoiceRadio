@@ -10,6 +10,7 @@ import org.bukkit.block.Jukebox;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.components.JukeboxPlayableComponent;
+import org.bukkit.persistence.PersistentDataType;
 import org.nyt.simpleVoiceRadio.SimpleVoiceRadio;
 import java.util.Map;
 
@@ -72,7 +73,10 @@ public class JukeboxManager {
 
         JukeboxPlayableComponent component = meta.getJukeboxPlayable();
         component.setSong(SIGNAL_TO_SONG.get(signalLevel));
-        meta.displayName(Component.text("SimpleVoiceRadio"));
+        meta.getPersistentDataContainer().set(
+                NamespacedKey.fromString("simple_voice_radio_disc"),
+                PersistentDataType.BOOLEAN,
+                true);
         meta.setHideTooltip(true);
         meta.setJukeboxPlayable(component);
 

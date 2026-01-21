@@ -15,7 +15,6 @@ import org.nyt.simpleVoiceRadio.Misc.Item;
 import org.nyt.simpleVoiceRadio.Utils.DataManager;
 import org.nyt.simpleVoiceRadio.Utils.DisplayEntityManager;
 import org.nyt.simpleVoiceRadio.Utils.JukeboxManager;
-
 import javax.annotation.Nullable;
 
 public final class SimpleVoiceRadio extends JavaPlugin {
