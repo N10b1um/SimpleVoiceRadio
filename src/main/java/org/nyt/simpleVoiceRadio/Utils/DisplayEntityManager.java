@@ -31,70 +31,35 @@ public class DisplayEntityManager {
 
     public List<ItemDisplay> createItemDisplays(Location loc) {
         ConfigurationSection textureSection = plugin.getConfig().getConfigurationSection("radio-block.texture_parts");
-        if (textureSection == null) {
-            SimpleVoiceRadio.LOGGER.error("Missing 'radio-block.texture_parts' section in config.yml!");
-            return new ArrayList<>();
-        }
-
-        SimpleVoiceRadio.LOGGER.info("Found texture_parts section with keys: {}", textureSection.getKeys(false));
+        if (textureSection == null) return null;
 
         List<ItemDisplay> list = new ArrayList<>();
 
         textureSection.getKeys(false).forEach(key -> {
-            SimpleVoiceRadio.LOGGER.info("Processing texture part key: {}", key);
-
-            try {
-                Integer.parseInt(key);
-            } catch (NumberFormatException e) {
-                SimpleVoiceRadio.LOGGER.info("Skipping non-numeric key: {}", key);
-                return;
-            }
-
             ConfigurationSection partSection = textureSection.getConfigurationSection(key);
-            if (partSection == null) {
-                SimpleVoiceRadio.LOGGER.warn("Missing configuration for texture part: {}", key);
-                return;
-            }
+            if (partSection == null) return;
 
-            try {
-                String skullSkin = partSection.getString("skull_skin");
-                if (skullSkin == null || skullSkin.isEmpty()) {
-                    SimpleVoiceRadio.LOGGER.warn("Missing skull_skin for texture part: {}", key);
-                    return;
-                }
+            ItemDisplay display = loc.getWorld().spawn(loc, ItemDisplay.class);
 
-                SimpleVoiceRadio.LOGGER.info("Creating ItemDisplay for part {}", key);
-                ItemDisplay display = loc.getWorld().spawn(loc, ItemDisplay.class);
-                ItemStack item = ItemStack.of(Material.PLAYER_HEAD);
+            ItemStack item = ItemStack.of(Material.PLAYER_HEAD);
+            String skullSkin = partSection.getString("skull_skin");
+            getSkullByValue(skullSkin, item);
 
-                getSkullByValue(skullSkin, item);
+            display.setItemStack(item);
+            display.setViewRange(512);
 
-                display.setItemStack(item);
-                display.setViewRange(512);
+            Vector3f translation = parseVector(
+                    partSection.getString("translation"),
+                    new Vector3f(0, 0, 0)
+            );
+            Vector3f scale = parseVector(
+                    partSection.getString("scale"),
+                    new Vector3f(1.001f, 1.001f, 1.001f)
+            );
 
-                Vector3f translation = parseVector(
-                        partSection.getString("translation"),
-                        new Vector3f(0, 0, 0)
-                );
-                Vector3f scale = parseVector(
-                        partSection.getString("scale"),
-                        new Vector3f(1.001f, 1.001f, 1.001f)
-                );
-
-                updateTransformation(display, translation, null, scale, null);
-                list.add(display);
-                SimpleVoiceRadio.LOGGER.info("Successfully created ItemDisplay for part {}", key);
-            } catch (Exception e) {
-                SimpleVoiceRadio.LOGGER.error("Failed to create item display for part {}: {}", key, e.getMessage());
-                e.printStackTrace();
-            }
+            updateTransformation(display, translation, null, scale, null);
+            list.add(display);
         });
-
-        SimpleVoiceRadio.LOGGER.info("Created {} item displays total", list.size());
-
-        if (list.isEmpty()) {
-            SimpleVoiceRadio.LOGGER.error("No item displays were created! Check your config.yml");
-        }
 
         return list;
     }
@@ -102,13 +67,13 @@ public class DisplayEntityManager {
     public void setStateSkin(ItemDisplay display, String state) {
         String displaySkullSkin;
         if (state.equalsIgnoreCase("input")) {
-            displaySkullSkin = plugin.getConfig().getString("radio-block.texture_parts.4.input_state");
+            displaySkullSkin = plugin.getConfig().getString("radio-block.texture_parts.part_4.input_state");
         }
         else if (state.equalsIgnoreCase("listen")) {
-            displaySkullSkin = plugin.getConfig().getString("radio-block.texture_parts.4.listen_state");
+            displaySkullSkin = plugin.getConfig().getString("radio-block.texture_parts.part_4.listen_state");
         }
         else {
-            displaySkullSkin = plugin.getConfig().getString("radio-block.texture_parts.4.skull_skin");
+            displaySkullSkin = plugin.getConfig().getString("radio-block.texture_parts.part_4.skull_skin");
         }
         ItemStack displayItem = display.getItemStack();
         getSkullByValue(displaySkullSkin, displayItem);
@@ -117,25 +82,20 @@ public class DisplayEntityManager {
 
 
     public TextDisplay createTextDisplay(Location loc, int frequency) {
-        try {
-            TextDisplay display = loc.getWorld().spawn(loc, TextDisplay.class);
+        TextDisplay display = loc.getWorld().spawn(loc, TextDisplay.class);
 
-            display.text(Component.text(String.valueOf(frequency), NamedTextColor.DARK_RED));
-            display.setBackgroundColor(Color.fromARGB(0,0,0,0));
-            display.setViewRange(512);
+        display.text(Component.text(String.valueOf(frequency), NamedTextColor.DARK_RED));
+        display.setBackgroundColor(Color.fromARGB(0,0,0,0));
+        display.setViewRange(512);
 
-            display.setBrightness(new Display.Brightness(15,15));
-            Vector3f scale = new Vector3f(1.5f,1.435f,0);
-            Vector3f translation = new Vector3f(0.0185f,-1.01f,-0.501f);
+        display.setBrightness(new Display.Brightness(15,15));
+        Vector3f scale = new Vector3f(1.5f,1.435f,0);
+        Vector3f translation = new Vector3f(0.0185f,-1.01f,-0.501f);
 
-            Quaternionf leftRot = new Quaternionf().rotateY((float) Math.toRadians(180));
-            updateTransformation(display, translation, leftRot, scale, null);
+        Quaternionf leftRot = new Quaternionf().rotateY((float) Math.toRadians(180));
+        updateTransformation(display, translation, leftRot, scale, null);
 
-            return display;
-        } catch (Exception e) {
-            SimpleVoiceRadio.LOGGER.error("Failed to create text display: {}", e.getMessage());
-            return null;
-        }
+        return display;
     }
 
     public void getSkullByValue(String base64, ItemStack item) {
@@ -191,5 +151,3 @@ public class DisplayEntityManager {
     }
 
 }
-
-
