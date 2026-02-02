@@ -1,6 +1,7 @@
 # ======================= #
 # SimpleVoiceRadio Config #
 # ======================= #
+debug_logs: false
 
 radio:
   # Display name of the radio item (supports MiniMessage and legacy color codes)

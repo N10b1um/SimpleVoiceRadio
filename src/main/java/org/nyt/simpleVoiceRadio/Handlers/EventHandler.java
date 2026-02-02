@@ -25,6 +25,7 @@ import org.nyt.simpleVoiceRadio.SimpleVoiceRadio;
 import org.nyt.simpleVoiceRadio.Utils.DataManager;
 import org.nyt.simpleVoiceRadio.Utils.DisplayEntityManager;
 import org.nyt.simpleVoiceRadio.VoiceAddon;
+
 import java.util.List;
 
 public class EventHandler implements Listener {
@@ -70,8 +71,8 @@ public class EventHandler implements Listener {
         jukebox.setRecord(null);
         jukebox.update();
 
-        if ( shouldModify ) block.setType(Material.AIR);
-        if ( shouldDropItem ) block.getWorld().dropItemNaturally(block.getLocation(), item.getItem());
+        if (shouldModify) block.setType(Material.AIR);
+        if (shouldDropItem) block.getWorld().dropItemNaturally(block.getLocation(), item.getItem());
     }
 
     @org.bukkit.event.EventHandler
@@ -83,7 +84,8 @@ public class EventHandler implements Listener {
 
     @org.bukkit.event.EventHandler(priority = EventPriority.LOWEST)
     public void onBlockPlace(BlockPlaceEvent event) {
-        if (!event.getItemInHand().getPersistentDataContainer().has(NamespacedKey.fromString("radio"), PersistentDataType.BOOLEAN)) return;
+        if (!event.getItemInHand().getPersistentDataContainer().has(NamespacedKey.fromString("radio"), PersistentDataType.BOOLEAN))
+            return;
         if (dataManager.getRadioCountInChunk(event.getBlock().getLocation()) >= plugin.getConfig().getInt("radio-block.blocks_per_chunk_limit", 10)) {
             event.setCancelled(true);
             return;
@@ -96,7 +98,7 @@ public class EventHandler implements Listener {
             center.setPitch(0f);
             center.setYaw(yaw);
 
-            Location offset = center.clone().add(0,1,0);
+            Location offset = center.clone().add(0, 1, 0);
             List<ItemDisplay> itemDisplays = displayEntityManager.createItemDisplays(offset);
 
             if (itemDisplays == null || itemDisplays.isEmpty()) {
@@ -113,7 +115,10 @@ public class EventHandler implements Listener {
             dataManager.setBlock(event.getBlock().getLocation(), frequency, "output", itemDisplays, textDisplay);
             updateRadioData(dataManager.getBlock(event.getBlock().getLocation()), frequency);
 
-            if (addon != null) addon.createChannel(event.getBlock().getLocation());
+            if (addon != null) {
+                addon.createChannel(event.getBlock().getLocation());
+                addon.recalculateRoutesAsync();
+            }
         }, 1L);
     }
 
@@ -121,7 +126,7 @@ public class EventHandler implements Listener {
     public void onCraftPrepare(PrepareItemCraftEvent event) {
         ItemStack result = event.getInventory().getResult();
         if (event.getView().getPlayer() instanceof Player player && result != null) {
-            if ( result.getPersistentDataContainer().has(NamespacedKey.fromString("radio")) && !player.hasPermission("simple_voice_radio.can_craft") ) {
+            if (result.getPersistentDataContainer().has(NamespacedKey.fromString("radio")) && !player.hasPermission("simple_voice_radio.can_craft")) {
                 event.getInventory().setResult(null);
             }
         }
@@ -180,8 +185,9 @@ public class EventHandler implements Listener {
         boolean redstoneMode = plugin.getConfig().getBoolean("radio-block.redstone_frequency", false);
         int currentPower = event.getClickedBlock().getBlockPower();
 
-        int freq = blockData.getFrequency();
+        int oldFrequency = blockData.getFrequency();
         String oldState = blockData.getState();
+        int freq = blockData.getFrequency();
 
         if (player.isSneaking() && !redstoneMode && player.hasPermission("simple_voice_radio.can_change_frequency")) {
             freq = blockData.getFrequency() + 1;
@@ -200,7 +206,13 @@ public class EventHandler implements Listener {
 
         updateRadioData(blockData, freq);
 
-        if (addon != null && !oldState.equals(blockData.getState())) addon.updateOutputChannels();
+        if (addon != null) {
+            if (!oldState.equals(blockData.getState())) {
+                addon.updateOutputChannels();
+            } else if (oldFrequency != freq) {
+                addon.recalculateRoutesAsync();
+            }
+        }
     }
 
     @org.bukkit.event.EventHandler
@@ -213,9 +225,18 @@ public class EventHandler implements Listener {
                 breakRadio(event.getBlock(), blockData, false, false);
             } else if (plugin.getConfig().getBoolean("radio-block.redstone_frequency", false)) {
                 String oldState = blockData.getState();
-                updateRadioData(blockData, event.getBlock().getBlockPower());
+                int oldFrequency = blockData.getFrequency();
+                int newPower = event.getBlock().getBlockPower();
 
-                if (addon != null && !oldState.equals(blockData.getState())) addon.updateOutputChannels();
+                updateRadioData(blockData, newPower);
+
+                if (addon != null) {
+                    if (!oldState.equals(blockData.getState())) {
+                        addon.updateOutputChannels();
+                    } else if (oldFrequency != blockData.getFrequency()) {
+                        addon.recalculateRoutesAsync();
+                    }
+                }
             }
         } catch (Exception e) {
             SimpleVoiceRadio.LOGGER.error(e);

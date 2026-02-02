@@ -3,10 +3,12 @@ package org.nyt.simpleVoiceRadio;
 import de.maxhenkel.voicechat.api.*;
 import de.maxhenkel.voicechat.api.audiochannel.LocationalAudioChannel;
 import de.maxhenkel.voicechat.api.events.*;
+import org.apache.logging.log4j.Logger;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.nyt.simpleVoiceRadio.Utils.DataManager;
 import org.nyt.simpleVoiceRadio.Utils.JukeboxManager;
+
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -16,17 +18,20 @@ public class VoiceAddon implements VoicechatPlugin {
     private final SimpleVoiceRadio plugin;
     private final JukeboxManager jukeboxManager;
 
+    private static final Logger LOGGER = SimpleVoiceRadio.LOGGER;
+
     private final Map<Location, LocationalAudioChannel> outputChannels = new ConcurrentHashMap<>();
     private final Set<Location> activeOutputs = ConcurrentHashMap.newKeySet();
     private final Map<Location, Set<Location>> routeCache = new ConcurrentHashMap<>();
 
     private final Set<Location> repeaterLocations = ConcurrentHashMap.newKeySet();
 
-    private double maxTransmissionDistance;
-    private double maxTransmissionDistanceSq;
-    private double repeaterDistance;
-    private double repeaterDistanceSq;
+    private final double maxTransmissionDistance;
+    private final double maxTransmissionDistanceSq;
+    private final double repeaterDistance;
+    private final double repeaterDistanceSq;
     private final int maxHops;
+    private final boolean debugLogs;
 
     public VoiceAddon(DataManager dataManager, SimpleVoiceRadio plugin, JukeboxManager jukeboxManager) {
         this.dataManager = dataManager;
@@ -36,13 +41,27 @@ public class VoiceAddon implements VoicechatPlugin {
         this.maxTransmissionDistance = plugin.getConfig().getDouble("radio-block.transmission_distance", 100.0);
         this.maxTransmissionDistanceSq = maxTransmissionDistance * maxTransmissionDistance;
 
-        this.repeaterDistance = plugin.getConfig().getDouble("radio-block.repeat_distance", 200.0);
+        this.repeaterDistance = plugin.getConfig().getDouble("lightning-rod.repeat_distance", 200.0);
         this.repeaterDistanceSq = repeaterDistance * repeaterDistance;
 
         this.maxHops = plugin.getConfig().getInt("radio-block.max_hops", 15);
         if (this.maxHops > 20) {
-            SimpleVoiceRadio.LOGGER.warn("Max hops is set to {}. Values higher than 20 may cause serious server load. Make sure you know what you're doing.", this.maxHops);
+            LOGGER.warn("Max hops is set to {}. Values higher than 20 may cause serious server load.", this.maxHops);
         }
+        this.debugLogs = plugin.getConfig().getBoolean("debug_logs", false);
+    }
+
+    private void debug(String message, Object... args) {
+        if (debugLogs) LOGGER.info(message, args);
+    }
+
+    private void debugWarn(String message, Object... args) {
+        if (debugLogs) LOGGER.warn(message, args);
+    }
+
+    private String locToString(Location loc) {
+        if (loc == null) return "null";
+        return String.format("[%s %.1f, %.1f, %.1f]", loc.getWorld().getName(), loc.getX(), loc.getY(), loc.getZ());
     }
 
     @Override
@@ -61,21 +80,22 @@ public class VoiceAddon implements VoicechatPlugin {
 
     private void onServerStart(VoicechatServerStartedEvent event) {
         api = event.getVoicechat();
-
         repeaterLocations.clear();
         repeaterLocations.addAll(dataManager.getAllRepeaters());
-
+        LOGGER.info("Server started. Loaded {} repeaters.", repeaterLocations.size());
         createOutputChannels();
         recalculateRoutesAsync();
     }
 
     public void addRepeater(Location location) {
+        debug("Adding repeater at {}", locToString(location));
         dataManager.addRepeater(location);
         repeaterLocations.add(location);
         recalculateRoutesAsync();
     }
 
     public void removeRepeater(Location location) {
+        debug("Removing repeater at {}", locToString(location));
         dataManager.removeRepeater(location);
         repeaterLocations.remove(location);
         recalculateRoutesAsync();
@@ -94,13 +114,13 @@ public class VoiceAddon implements VoicechatPlugin {
         float radius = (float) plugin.getConfig().getDouble("radio-block.output_radius", 16);
         channel.setDistance(radius);
         outputChannels.put(location, channel);
-
         return channel;
     }
 
     public void createOutputChannels() {
         outputChannels.clear();
         Map<Location, DataManager.RadioData> outputRadios = dataManager.getAllRadiosByState("output");
+        debug("Creating channels for {} output radios.", outputRadios.size());
         outputRadios.keySet().forEach(this::createChannel);
     }
 
@@ -137,7 +157,8 @@ public class VoiceAddon implements VoicechatPlugin {
 
             sendPacket(location, event.getPacket().getOpusEncodedData());
         } catch (Exception e) {
-            SimpleVoiceRadio.LOGGER.error("Error processing microphone packet: {}", e.getMessage());
+            LOGGER.error("Error processing microphone packet: {}", e.getMessage());
+            e.printStackTrace();
         }
     }
 
@@ -165,13 +186,17 @@ public class VoiceAddon implements VoicechatPlugin {
             Location inputLoc = inputEntry.getKey();
             Set<Location> reachableOutputs = routeCache.get(inputLoc);
 
-            if (reachableOutputs == null || reachableOutputs.isEmpty()) continue;
+            if (reachableOutputs == null || reachableOutputs.isEmpty()) {
+                continue;
+            }
 
             double distance = location.distance(inputLoc);
             int signalLevel = JukeboxManager.calculateSignalLevel(distance, inputRadius);
 
             for (Location outputLoc : reachableOutputs) {
-                if (!outputLoc.isChunkLoaded()) continue;
+                if (!outputLoc.isChunkLoaded()) {
+                    continue;
+                }
 
                 LocationalAudioChannel channel = outputChannels.computeIfAbsent(outputLoc, this::createChannel);
                 if (channel == null) continue;
@@ -205,10 +230,14 @@ public class VoiceAddon implements VoicechatPlugin {
     }
 
     private synchronized void recalculateRoutes() {
+        long startTime = System.currentTimeMillis();
+        debug("=== STARTING ROUTE RECALCULATION ===");
         routeCache.clear();
 
         Map<Location, DataManager.RadioData> inputs = dataManager.getAllRadiosByState("input");
         Map<Location, DataManager.RadioData> outputs = dataManager.getAllRadiosByState("output");
+
+        debug("Inputs: {}, Outputs: {}, Repeaters: {}", inputs.size(), outputs.size(), repeaterLocations.size());
 
         Map<Integer, List<Location>> outputsByFreq = new HashMap<>();
         for (Map.Entry<Location, DataManager.RadioData> entry : outputs.entrySet()) {
@@ -225,13 +254,21 @@ public class VoiceAddon implements VoicechatPlugin {
             int frequency = inputEntry.getValue().getFrequency();
 
             List<Location> potentialOutputs = outputsByFreq.get(frequency);
+
+            debug("Calculating for Input {} (Freq: {}). Potential targets: {}",
+                    locToString(startNode), frequency, (potentialOutputs == null ? 0 : potentialOutputs.size()));
+
             if (potentialOutputs == null || potentialOutputs.isEmpty()) continue;
 
             Set<Location> reachable = findReachableOutputs(startNode, potentialOutputs, repeatersByWorld.get(startNode.getWorld()));
             if (!reachable.isEmpty()) {
+                debug("-> Route FOUND for Input {}: {} outputs reachable.", locToString(startNode), reachable.size());
                 routeCache.put(startNode, reachable);
+            } else {
+                debug("-> NO Route found for Input {}.", locToString(startNode));
             }
         }
+        debug("=== RECALCULATION FINISHED in {}ms ===", System.currentTimeMillis() - startTime);
     }
 
     private Set<Location> findReachableOutputs(Location start, List<Location> targets, List<Location> worldRepeaters) {
@@ -242,6 +279,8 @@ public class VoiceAddon implements VoicechatPlugin {
         for (Location target : targets) {
             if (target.getWorld().equals(start.getWorld())) {
                 validTargets.add(target);
+            } else {
+                LOGGER.warn("Target {} ignored (Different world from Start {})", locToString(target), locToString(start));
             }
         }
         if (validTargets.isEmpty()) return reachedTargets;
@@ -252,18 +291,31 @@ public class VoiceAddon implements VoicechatPlugin {
         queue.add(start);
         hopCount.put(start, 0);
 
+        debug("   [BFS Start] Origin: {}, Targets left: {}, WorldRepeaters: {}",
+                locToString(start), validTargets.size(), worldRepeaters.size());
+
         while (!queue.isEmpty()) {
             Location current = queue.poll();
             int currentHops = hopCount.get(current);
 
-            if (currentHops >= maxHops) continue;
+            boolean isOrigin = current.equals(start);
+            double currentRangeSq = isOrigin ? maxTransmissionDistanceSq : repeaterDistanceSq;
+            double currentRangeDebug = isOrigin ? maxTransmissionDistance : repeaterDistance;
 
-            double currentRangeSq = (current.equals(start)) ? maxTransmissionDistanceSq : repeaterDistanceSq;
+            if (currentHops >= maxHops) {
+                debugWarn("   [BFS Stop] Node {} reached max hops ({}).", locToString(current), maxHops);
+                continue;
+            }
 
             Iterator<Location> it = validTargets.iterator();
             while (it.hasNext()) {
                 Location target = it.next();
-                if (current.distanceSquared(target) <= currentRangeSq) {
+                double distSq = current.distanceSquared(target);
+
+                if (distSq <= currentRangeSq) {
+                    debug("      [TARGET REACHED!] Signal jumped from {} to Target {}. Dist: {} <= {}",
+                            locToString(current), locToString(target), Math.sqrt(distSq), currentRangeDebug);
+
                     reachedTargets.add(target);
                     it.remove();
                 }
@@ -274,7 +326,12 @@ public class VoiceAddon implements VoicechatPlugin {
             for (Location repeater : worldRepeaters) {
                 if (hopCount.containsKey(repeater)) continue;
 
-                if (current.distanceSquared(repeater) <= currentRangeSq) {
+                double distSq = current.distanceSquared(repeater);
+
+                if (distSq <= currentRangeSq) {
+                    debug("      [HOP] Signal jumped from {} to Repeater {} (Hops: {}). Dist: {} <= {}",
+                            locToString(current), locToString(repeater), currentHops + 1, Math.sqrt(distSq), currentRangeDebug);
+
                     hopCount.put(repeater, currentHops + 1);
                     queue.add(repeater);
                 }
